@@ -182,6 +182,8 @@ function process(e) {
       'font-family': hit_elem.css('font-family')
     }
 
+    const allText = hit_elem.text()
+
     const text_nodes = hit_elem.contents().filter(function(){
       return this.nodeType == Node.TEXT_NODE && XRegExp(word_re).test( this.nodeValue )
     })
@@ -259,7 +261,10 @@ function process(e) {
       return hw
     })
 
-    return hit_word
+    if (allText !== hit_word)
+      return hit_word + '\n' + allText;
+    else
+      return hit_word;
   }
 
   const selection = window.getSelection()
