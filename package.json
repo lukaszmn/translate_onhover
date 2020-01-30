@@ -1,6 +1,7 @@
 {
   "scripts": {
     "build": "NODE_ENV=production webpack && zip -FS -r -j translate_onhover dist",
+    "build-win": "SET NODE_ENV=production && webpack && c:/SOFT/gnuwin/zip -FS -r -j translate_onhover dist",
     "dev": "webpack --watch",
     "lint": "eslint --ignore-pattern dist ."
   },
