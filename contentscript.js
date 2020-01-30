@@ -276,10 +276,12 @@ function process(e) {
   }
 
   //skip inputs and editable divs
-  if (/INPUT|TEXTAREA/.test( hit_elem.nodeName ) || hit_elem.isContentEditable
-      || $(hit_elem).parents().filter(function() { return this.isContentEditable }).length > 0) {
+  if (options.exclude_inputs) {
+    if (/INPUT|TEXTAREA/.test( hit_elem.nodeName ) || hit_elem.isContentEditable
+        || $(hit_elem).parents().filter(function() { return this.isContentEditable }).length > 0) {
 
-    return
+      return
+    }
   }
 
   let word = ''
