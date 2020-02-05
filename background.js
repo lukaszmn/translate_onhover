@@ -1,8 +1,26 @@
 import Options from './lib/options'
 import TransOver from './lib/transover_utils'
 
-function translate(word, sl, tl, last_translation, onresponse, sendResponse, ga_event_name) {
-  const options = {
+function translate(word, sentence, sl, tl, last_translation, onresponse, sendResponse, ga_event_name) {
+  let callback;
+  if (sentence) {
+    let results = {};
+    callback = function(dataWord, dataSentence) {
+      if (dataWord)
+        results.word = dataWord
+      else
+        results.sentence = dataSentence
+
+      if (results.word && results.sentence)
+        onresponse([results.word, results.sentence], [word, sentence], tl, last_translation, sendResponse, ga_event_name)
+    }
+  } else {
+    callback = function(dataWord) {
+      onresponse([dataWord], [word], tl, last_translation, sendResponse, ga_event_name)
+    }
+  }
+
+  const optionsWord = {
     url: 'https://clients5.google.com/translate_a/t?client=dict-chrome-ex',
     data: {
       q: word,
@@ -11,14 +29,27 @@ function translate(word, sl, tl, last_translation, onresponse, sendResponse, ga_
     },
     dataType: 'json',
     success: function on_success(data) {
-      onresponse(data, word, tl, last_translation, sendResponse, ga_event_name)
+      callback(data, undefined)
     },
     error: function(xhr, status, e) {
       console.log({e: e, xhr: xhr})
     }
   }
 
-  $.ajax(options)
+  const optionsSentence = Object.assign({}, optionsWord, {
+    data: {
+      q: sentence,
+      sl: sl,
+      tl: tl,
+    },
+    success: function on_success(data) {
+      callback(undefined, data)
+    }
+  })
+
+  $.ajax(optionsWord)
+  if (sentence)
+    $.ajax(optionsSentence)
 }
 
 function figureOutSlTl(tab_lang) {
@@ -43,44 +74,51 @@ function translationIsTheSameAsInput(sentences, input) {
   return sentences[0].trans.match(new RegExp(TransOver.regexp_escape(input), 'i'))
 }
 
-function on_translation_response(data, word, tl, last_translation, sendResponse, ga_event_name) {
-  let output
+function on_translation_response(datas, words, tl, last_translation, sendResponse, ga_event_name) {
   const translation = {tl: tl}
 
-  console.log('raw_translation: ', data)
+  console.log('raw_translations: ', datas)
 
-  if ((!data.dict && !data.sentences) || (!data.dict && translationIsTheSameAsInput(data.sentences, word))) {
-    translation.succeeded = false
+  function parseData(data, word) {
+    let output
+    if ((!data.dict && !data.sentences) || (!data.dict && translationIsTheSameAsInput(data.sentences, word))) {
+      translation.succeeded = false
 
-    if (Options.do_not_show_oops()) {
-      output = ''
+      if (Options.do_not_show_oops()) {
+        output = ''
+      } else {
+        output = 'Oops.. No translation found.'
+      }
     } else {
-      output = 'Oops.. No translation found.'
-    }
-  } else {
-    translation.succeeded = true
-    translation.word = word
+      translation.succeeded = true
+      translation.word = word
 
-    output = []
-    if (data.dict) { // full translation
-      data.dict.forEach(function(t) {
-        output.push({pos: t.pos, meanings: t.terms})
-      })
-    } else { // single word or sentence(s)
-      data.sentences.forEach(function(s) {
-        output.push(s.trans)
-      })
-      output = output.join(' ')
+      output = []
+      if (data.dict) { // full translation
+        data.dict.forEach(function(t) {
+          output.push({pos: t.pos, meanings: t.terms})
+        })
+      } else { // single word or sentence(s)
+        data.sentences.forEach(function(s) {
+          output.push(s.trans)
+        })
+        output = output.join(' ')
+      }
+
+      translation.sl = data.src
     }
 
-    translation.sl = data.src
+    if (!( output instanceof String)) {
+      output = JSON.stringify(output)
+    }
+
+    return output
   }
 
-  if (!( output instanceof String)) {
-    output = JSON.stringify(output)
-  }
-
-  translation.translation = output
+  translation.translations = []
+  translation.translations.push(parseData(datas[0], words[0]))
+  if (datas.length > 1)
+    translation.translations.push(parseData(datas[1], words[1]))
 
   $.extend(last_translation, translation)
 
@@ -127,7 +165,7 @@ chrome.extension.onRequest.addListener(function(request, sender, sendResponse) {
         sl = sltl.sl
         tl = sltl.tl
       }
-      translate(request.word, sl, tl, last_translation, on_translation_response, sendResponse, Options.translate_by())
+      translate(request.word, request.sentence, sl, tl, last_translation, on_translation_response, sendResponse, Options.translate_by())
     })
     break
   case 'tts':

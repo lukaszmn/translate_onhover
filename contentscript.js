@@ -262,9 +262,9 @@ function process(e) {
     })
 
     if (allText !== hit_word)
-      return hit_word + '\n' + allText;
+      return { word: hit_word, sentence: allText };
     else
-      return hit_word;
+      return { word: hit_word };
   }
 
   const selection = window.getSelection()
@@ -284,7 +284,7 @@ function process(e) {
     }
   }
 
-  let word = ''
+  let words = {}
   if (selection.toString()) {
 
     if (options.selection_key_only) {
@@ -309,28 +309,34 @@ function process(e) {
         // But what is the point for the first part of condition? Well, without it, pointing at body for instance would also satisfy the second part
         // resulting in selection translation showing up in random places
     ) {
-      word = selection.toString()
+      words = { word: selection.toString() }
     }
     else if (options.translate_by == 'point') {
-      word = getHitWord(e)
+      words = getHitWord(e)
     }
   }
   else {
-    word = getHitWord(e)
+    words = getHitWord(e)
   }
-  if (word != '') {
-    chrome.extension.sendRequest({handler: 'translate', word: word}, function(response) {
+  if (words.word) {
+    chrome.extension.sendRequest({handler: 'translate', word: words.word, sentence: words.sentence}, function(response) {
       debug('response: ', response)
 
-      const translation = TransOver.deserialize(response.translation)
+      const translation1 = TransOver.deserialize(response.translations[0])
 
-      if (!translation) {
+      if (!translation1) {
         debug('skipping empty translation')
         return
       }
 
-      last_translation = translation
-      showPopup(e, TransOver.formatTranslation(translation, TransOverLanguages[response.tl].direction, response.sl, options))
+      last_translation = translation1
+
+      let formatted = TransOver.formatTranslation(translation1, TransOverLanguages[response.tl].direction, response.sl, options);
+      if (response.translations.length > 1) {
+        const translation2 = TransOver.deserialize(response.translations[1])
+        formatted += TransOver.formatTranslation(translation2, TransOverLanguages[response.tl].direction, response.sl, options);
+      }
+      showPopup(e, formatted)
     })
   }
 }
